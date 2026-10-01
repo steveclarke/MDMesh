@@ -1,7 +1,6 @@
 package com.mdmesh.agent
 
 import android.app.ActivityManager
-import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
@@ -23,12 +22,13 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
-import kotlinx.coroutines.flow.distinctUntilChanged
 import com.mdmesh.agent.service.CheckInService
+import com.mdmesh.core.kiosk.KioskApplier
 import com.mdmesh.core.store.KioskStateStore
 import com.mdmesh.core.telemetry.EventSink
 import com.mdmesh.kiosk.CrashLoopGuard
 import com.mdmesh.kiosk.KioskController
+import com.mdmesh.kiosk.KioskResult
 import com.mdmesh.proto.KioskApplyPayload
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -47,19 +47,19 @@ import javax.inject.Inject
  * button / `remote` none) and gated by [KioskApplyPayload.password].
  *
  * A [CrashLoopGuard] protects against a crashing pinned app bouncing back to HOME in a tight
- * loop: each single-app launch registers a fault, and once the loop trips the launcher drops
- * kiosk instead of re-pinning, so a misconfigured deployment cannot brick the device.
+ * loop: each single-app launch registers a fault. A tripped guard shows locked recovery until
+ * an administrator retries or exits; device-owner policy and persistent HOME stay in place.
  */
 @AndroidEntryPoint
 class KioskLauncherActivity : ComponentActivity() {
 
-    @Inject lateinit var store: KioskStateStore
-    @Inject lateinit var controller: KioskController
+    @Inject lateinit var applier: KioskApplier
     @Inject lateinit var events: EventSink
     @Inject lateinit var crashGuard: CrashLoopGuard
 
-    /** Last applied non-null kiosk state, so [onResume] can recover a bounced single-app pin. */
+    /** Current kiosk state, retained while rendering its locked recovery screen. */
     private var active: KioskApplyPayload? = null
+    private var showingRecovery = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -69,35 +69,25 @@ class KioskLauncherActivity : ComponentActivity() {
         setContentView(idleView())
         // React to kiosk.enter/kiosk.exit live: those run in the check-in service, not here, so we
         // observe the persisted state and re-render (enter → grid/pin, exit → unpin + idle) without
-        // waiting for the user to touch the screen.
+        // waiting for the user to touch the screen. Each foreground return starts one collector,
+        // so a bounced pinned app is counted/relaunched once, not once in both onStart and onResume.
         lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                store.flow().distinctUntilChanged().collect(::applyState)
+            repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                applier.launcherState().collect(::applyState)
             }
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // A single-app pin that returned us to HOME means the pinned app exited or crashed — re-pin
-        // it (counting the bounce so a crash loop trips the guard). Enter/exit transitions are
-        // handled by the flow collector, not here.
-        val p = active ?: return
-        if (p.mode == "single") {
-            crashGuard.registerFault()
-            if (bailOnCrashLoop()) return
-            launchPinned(p)
         }
     }
 
     private fun applyState(p: KioskApplyPayload?) {
         active = p
         if (p == null) {
+            showingRecovery = false
             stopLockTaskSafely()
             setContentView(idleView())
             return
         }
         if (bailOnCrashLoop()) return
+        showingRecovery = false
         startLockTaskSafely()
         if (p.mode == "single" && p.pinPackage != null) {
             launchPinned(p)
@@ -113,18 +103,21 @@ class KioskLauncherActivity : ComponentActivity() {
             setContentView(launcherGrid(p)) // unknown package → fall back to the grid
             return
         }
+        // Count attempts as well as returned apps, including activity/process recreation.
+        crashGuard.registerFault()
+        if (bailOnCrashLoop()) return
         setContentView(splashView(p))
         runCatching { startActivity(intent) }
     }
 
-    /** @return true if a crash loop tripped (kiosk dropped + recovery shown), so the caller stops. */
+    /** A fault only changes the foreground surface; it never releases kiosk policy or HOME. */
     private fun bailOnCrashLoop(): Boolean {
-        if (!crashGuard.isCrashLoopDetected()) return false
-        events.record("kioskCrashLoop", "dropped kiosk after repeated crashes")
-        controller.exit()
-        active = null
-        lifecycleScope.launch { store.save(null) }
-        setContentView(recoveryView())
+        val p = active
+        if (p == null || !crashGuard.isCrashLoopDetected()) return false
+        if (!showingRecovery) events.record("kioskCrashLoop", "locked recovery after repeated exits or crashes")
+        showingRecovery = true
+        startLockTaskSafely()
+        setContentView(recoveryView(p))
         return true
     }
 
@@ -144,51 +137,37 @@ class KioskLauncherActivity : ComponentActivity() {
 
     // --- Exit flow ---------------------------------------------------------------------------
 
-    private fun promptExit(p: KioskApplyPayload) {
-        val pw = p.password
-        if (pw.isNullOrBlank()) {
-            doExit()
-            return
-        }
+    private fun promptExit(p: KioskApplyPayload) = promptAdminAction(p, retry = false)
+
+    private fun promptAdminAction(p: KioskApplyPayload, retry: Boolean) {
+        if (p.exitMode == "remote" || p.password.isNullOrBlank()) return
         val input = EditText(this).apply {
             inputType = android.text.InputType.TYPE_CLASS_TEXT or
                 android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
             hint = "Admin password"
         }
+        val action = if (retry) "Retry" else "Exit"
         AlertDialog.Builder(this)
-            .setTitle("Exit kiosk")
+            .setTitle(if (retry) "Retry kiosk app" else "Exit kiosk")
             .setView(input)
-            .setPositiveButton("Exit") { _, _ ->
-                if (input.text.toString() == pw) doExit()
+            .setPositiveButton(action) { _, _ ->
+                lifecycleScope.launch {
+                    val result = if (retry) applier.retryWithPassword(input.text.toString())
+                    else applier.exitWithPassword(input.text.toString())
+                    if (result == KioskResult.Ok) {
+                        events.record(if (retry) "kioskRetry" else "kioskExit", "authenticated on-device")
+                        if (!retry) finish()
+                    } else {
+                        android.widget.Toast.makeText(
+                            this@KioskLauncherActivity,
+                            "Administrator action failed. Check the password or contact your administrator.",
+                            android.widget.Toast.LENGTH_LONG,
+                        ).show()
+                    }
+                }
             }
             .setNegativeButton("Cancel", null)
             .show()
-    }
-
-    private fun doExit() {
-        runCatching { if (isFinishing.not()) stopLockTask() }
-        controller.exit()
-        events.record("kioskExit", "exited on-device")
-        // Drop our HOME claim and hand off to the OEM launcher so the device returns to normal
-        // (mirrors KioskExitHandler for the remote-exit path).
-        runCatching {
-            packageManager.setComponentEnabledSetting(
-                ComponentName(this, HOME_ALIAS),
-                android.content.pm.PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                android.content.pm.PackageManager.DONT_KILL_APP,
-            )
-        }
-        lifecycleScope.launch {
-            store.save(null)
-            runCatching {
-                startActivity(
-                    Intent(Intent.ACTION_MAIN)
-                        .addCategory(Intent.CATEGORY_HOME)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
-            }
-            finish()
-        }
     }
 
     // --- Views -------------------------------------------------------------------------------
@@ -294,26 +273,35 @@ class KioskLauncherActivity : ComponentActivity() {
         addView(col)
     }
 
-    private fun recoveryView(): View = frame(INK).apply {
+    private fun recoveryView(p: KioskApplyPayload): View = frame(INK).apply {
         val col = LinearLayout(this@KioskLauncherActivity).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(dp(28), 0, dp(28), 0)
             layoutParams = ViewGroup.LayoutParams(MATCH, MATCH)
         }
-        col.addView(centeredText("Kiosk stopped", 22f, ALERT, bold = true))
+        col.addView(centeredText("Kiosk recovery", 22f, ALERT, bold = true))
         col.addView(
             centeredText(
-                "A kiosk app crashed repeatedly, so kiosk mode was disabled to keep the device usable.",
+                "The kiosk app exited or crashed repeatedly. This device remains locked. " +
+                    "Contact your administrator to retry or exit.",
                 14f,
                 MUTED,
             ).apply { setPadding(0, dp(12), 0, 0) },
         )
+        if (p.exitMode != "remote" && !p.password.isNullOrBlank()) {
+            col.addView(Button(this@KioskLauncherActivity).apply {
+                text = "Admin retry"
+                setOnClickListener { promptAdminAction(p, retry = true) }
+            })
+        }
         addView(col)
+        addExitAffordance(p, this)
     }
 
     /** Add the per-[KioskApplyPayload.exitMode] exit affordance to [parent]. */
     private fun addExitAffordance(p: KioskApplyPayload, parent: ViewGroup) {
+        if (p.password.isNullOrBlank()) return
         when (p.exitMode) {
             "visible" -> {
                 val btn = Button(this).apply {
@@ -377,7 +365,6 @@ class KioskLauncherActivity : ComponentActivity() {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val GESTURE_TAPS = 7
         const val GESTURE_WINDOW_MS = 3_000L
-        const val HOME_ALIAS = "com.mdmesh.agent.KioskHomeAlias"
         val INK = Color.parseColor("#0E1117")
         val TEXT = Color.parseColor("#E8EEF4")
         val MUTED = Color.parseColor("#8693A4")

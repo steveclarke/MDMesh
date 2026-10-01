@@ -26,6 +26,7 @@ dependencies {
     // NOTE: :kiosk must NOT depend on :policy. KioskResult is defined locally
     // (see KioskController.kt) to keep this module independent of :policy.
     implementation(libs.androidx.core.ktx)
+    api(libs.kotlinx.coroutines.core)
 
     testImplementation(libs.junit)
 }

@@ -23,7 +23,7 @@ class KioskEnterHandler(private val applier: KioskApplier) : CommandHandler {
             runCatching { ProtocolJson.json.decodeFromJsonElement(KioskApplyPayload.serializer(), it) }
                 .getOrElse { e -> return CommandResults.failed(command, "bad payload: ${e.message}") }
         } ?: KioskApplyPayload()
-        return when (val r = applier.enter(p)) {
+        return when (val r = applier.enter(p, retry = true)) {
             KioskResult.Ok -> CommandResults.done(command)
             KioskResult.Unsupported -> CommandResults.unsupported(command, "kiosk requires Device Owner")
             is KioskResult.Failed -> CommandResults.failed(command, r.reason)

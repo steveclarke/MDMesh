@@ -255,10 +255,11 @@ object AgentModule {
     fun provideKioskApplier(
         kiosk: KioskController,
         store: KioskStateStore,
+        crashGuard: CrashLoopGuard,
         @ApplicationContext context: Context,
     ): KioskApplier {
         val home = kioskHomeAlias(context)
-        return KioskApplier(kiosk, store, AndroidKioskHomeSwitch(context, home), home)
+        return KioskApplier(kiosk, store, AndroidKioskHomeSwitch(context, home), home, crashGuard)
     }
 
     @Provides @IntoSet
