@@ -5,6 +5,8 @@ import com.mdmesh.core.kiosk.KioskApplier
 import com.mdmesh.core.kiosk.KioskHomeSwitch
 import com.mdmesh.core.store.InMemoryConfigStateStore
 import com.mdmesh.core.store.InMemoryKioskStateStore
+import com.mdmesh.kiosk.CrashLoopGuard
+import com.mdmesh.kiosk.InMemoryFaultStore
 import com.mdmesh.kiosk.KioskController
 import com.mdmesh.kiosk.KioskResult
 import com.mdmesh.policy.PolicyOutcome
@@ -33,7 +35,7 @@ class ConfigApplierTest {
     private object NoHome : KioskHomeSwitch { override fun setClaimEnabled(enabled: Boolean) {}; override fun showLauncher() {}; override fun showOemHome() {} }
 
     private fun kiosk(c: KioskController, store: InMemoryKioskStateStore = InMemoryKioskStateStore()) =
-        KioskApplier(c, store, NoHome, ComponentName("a", "b"))
+        KioskApplier(c, store, NoHome, ComponentName("a", "b"), CrashLoopGuard(InMemoryFaultStore()))
 
     @Test fun `applies present policies only and persists on full success`() = runTest {
         val wifi = FakeToggle("wifi", PolicyOutcome.Applied); val bt = FakeToggle("bluetooth", PolicyOutcome.Applied)
@@ -100,5 +102,46 @@ class ConfigApplierTest {
         val r = ConfigApplier(mapOf("wifi" to wifi), kiosk(FakeController()), {}, store).reapplyPersisted()
         assertEquals("p1", r?.revision); assertEquals(true, wifi.last)
         assertNull(ConfigApplier(emptyMap(), kiosk(FakeController()), {}, InMemoryConfigStateStore()).reapplyPersisted())
+    }
+
+    @Test fun `offline boot and unchanged config replay never release locked recovery`() = runTest {
+        val payload = KioskApplyPayload(mode = "single", pinPackage = "com.broken")
+        val kstore = InMemoryKioskStateStore(payload)
+        val faults = InMemoryFaultStore()
+        val guard = CrashLoopGuard(faults, { 0L })
+        repeat(4) { guard.registerFault() }
+        val config = ConfigApplyPayload(revision = "boot", kiosk = payload)
+        val configStore = InMemoryConfigStateStore()
+        configStore.save(config)
+
+        // Reconstruct both guard and appliers as boot/process recreation does, long after the window.
+        val restartedGuard = CrashLoopGuard(faults, { CrashLoopGuard.LOOP_TIME_SPAN + 1 })
+        val c = FakeController()
+        val k = KioskApplier(c, kstore, NoHome, ComponentName("a", "b"), restartedGuard)
+        val a = ConfigApplier(emptyMap(), k, {}, configStore)
+        assertEquals(ConfigOutcome.APPLIED, a.reapplyPersisted()?.outcomes?.get("kiosk"))
+        assertEquals(ConfigOutcome.APPLIED, a.apply(config.copy(revision = "replayed")).outcomes["kiosk"])
+        assertTrue(restartedGuard.isCrashLoopDetected())
+        assertEquals(payload, kstore.load())
+        assertEquals(0, c.exits)
+    }
+
+    @Test fun `boot replay cannot clear recovery even when manual kiosk differs from stored config`() = runTest {
+        val configured = KioskApplyPayload(mode = "single", pinPackage = "com.configured")
+        val manual = configured.copy(pinPackage = "com.manual")
+        val kstore = InMemoryKioskStateStore(manual)
+        val guard = CrashLoopGuard(InMemoryFaultStore(), { 0L })
+        repeat(4) { guard.registerFault() }
+        val configStore = InMemoryConfigStateStore()
+        configStore.save(ConfigApplyPayload(revision = "old", kiosk = configured))
+        val c = FakeController()
+        val k = KioskApplier(c, kstore, NoHome, ComponentName("a", "b"), guard)
+        val a = ConfigApplier(emptyMap(), k, {}, configStore)
+        a.reapplyPersisted()
+        assertTrue(guard.isCrashLoopDetected()); assertEquals(0, c.exits)
+
+        // A newly authenticated change to the desired kiosk is an explicit retry.
+        a.apply(ConfigApplyPayload(revision = "new", kiosk = configured.copy(pinPackage = "com.fixed")))
+        assertFalse(guard.isCrashLoopDetected()); assertEquals(0, c.exits)
     }
 }

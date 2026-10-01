@@ -1,84 +1,60 @@
 package com.mdmesh.kiosk
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+
 /**
- * Safety valve for kiosk deployments: a misconfigured allowlist or a crashing kiosk
- * app can pin a Device-Owner device in an unrecoverable boot/crash loop. This guard
- * counts crashes inside a rolling time window; once the threshold is exceeded the
- * caller stops self-restarting and surfaces a recovery path (e.g. exit lock-task /
- * offer a launcher chooser) so a broken DPC cannot brick the device.
- *
- * Ported from Headwind MDM's `CrashLoopProtection` (Apache-2.0). The counting logic
- * is deliberately Android-free so it is unit-testable on the JVM:
- * - the clock is injected via [now];
- * - the persisted counter lives behind [FaultStore], with a SharedPreferences-backed
- *   impl ([SharedPrefsFaultStore]) for production and [InMemoryFaultStore] for tests.
- *
- * @property store persisted fault counter + last-fault timestamp.
- * @property now wall-clock time source in millis; injectable for tests.
+ * Stops relaunching a repeatedly crashing kiosk app without releasing lock-task or HOME.
+ * Recovery is persisted synchronously with the fault count and survives process death/reboot.
+ * Only an authenticated administrator retry or exit calls [reset].
  */
 class CrashLoopGuard(
     private val store: FaultStore,
     private val now: () -> Long = { System.currentTimeMillis() },
 ) {
+    // Also latch an existing installation's tripped counter when upgrading.
+    private val recoveryState = MutableStateFlow(store.recovery || store.counter > LOOP_CRASHES)
+    val recovery: StateFlow<Boolean> = recoveryState
 
-    /**
-     * Register a crash/fault now.
-     *
-     * If the previous fault was longer than [LOOP_TIME_SPAN] ago (or none recorded),
-     * the counter restarts at 1; otherwise it is incremented. The store is committed
-     * synchronously because the process may be dying when this is called.
-     */
-    fun registerFault() {
-        val faultTime = now()
-        val lastFaultTime = store.lastFaultTime
-        // lastFaultTime < 0 == "never faulted" (NOT 0, which is a valid clock value);
-        // a fresh window also starts when the previous fault aged out.
-        if (lastFaultTime < 0L || faultTime - lastFaultTime > LOOP_TIME_SPAN) {
-            store.write(counter = 1, lastFaultTime = faultTime)
-            return
+    init {
+        if (recoveryState.value && !store.recovery) {
+            store.write(store.counter, store.lastFaultTime, recovery = true)
         }
-        store.write(counter = store.counter + 1, lastFaultTime = lastFaultTime)
     }
 
-    /**
-     * @return true if more than [LOOP_CRASHES] faults occurred within [LOOP_TIME_SPAN].
-     *
-     * If the last fault has aged out of the window the counter is reset and this
-     * returns false, so a device that recovers is not stuck in the bail-out state.
-     */
-    fun isCrashLoopDetected(): Boolean {
-        val faultTime = now()
-        val lastFaultTime = store.lastFaultTime
-        if (lastFaultTime < 0L) return false
-        if (faultTime - lastFaultTime > LOOP_TIME_SPAN) {
-            store.write(counter = 0, lastFaultTime = 0L)
-            return false
-        }
-        return store.counter > LOOP_CRASHES
+    /** Count a launch/return inside the window; a tripped guard never expires. */
+    @Synchronized
+    fun registerFault() {
+        if (isCrashLoopDetected()) return
+        val time = now()
+        val first = store.lastFaultTime
+        val fresh = first < 0L || time < first || time - first > LOOP_TIME_SPAN
+        val count = if (fresh) 1 else store.counter + 1
+        val tripped = count > LOOP_CRASHES
+        store.write(count, if (fresh) time else first, tripped)
+        recoveryState.value = tripped
+    }
+
+    fun isCrashLoopDetected(): Boolean = recoveryState.value
+
+    /** Called only after a successful administrator retry/exit, never by boot or a timer. */
+    @Synchronized
+    fun reset() {
+        store.write(counter = 0, lastFaultTime = -1L, recovery = false)
+        recoveryState.value = false
     }
 
     companion object {
-        /** Rolling window for counting crashes, in millis. */
         const val LOOP_TIME_SPAN = 60_000L
-
-        /** Crash count that must be exceeded within [LOOP_TIME_SPAN] to trip the guard. */
         const val LOOP_CRASHES = 3
-
-        /** SharedPreferences file name for the persisted fault counter. */
         const val FAULT_PREFERENCE_NAME = "com.mdmesh.fault"
     }
 }
 
-/**
- * Persistence for [CrashLoopGuard]'s fault counter and last-fault timestamp.
- *
- * Writes must be durable enough to survive process death; the production impl
- * commits synchronously.
- */
+/** Durable, atomic persistence for [CrashLoopGuard]; production writes commit synchronously. */
 interface FaultStore {
     val counter: Int
     val lastFaultTime: Long
-
-    /** Atomically persist both fields. */
-    fun write(counter: Int, lastFaultTime: Long)
+    val recovery: Boolean
+    fun write(counter: Int, lastFaultTime: Long, recovery: Boolean)
 }
