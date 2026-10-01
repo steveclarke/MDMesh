@@ -47,6 +47,13 @@ object NetworkModule {
 
     @Provides
     @Singleton
+    @ApkDownloadClient
+    // Build independently: API URL rewriting, credentials and cookies must never follow APK URLs.
+    // OkHttp's default certificate and hostname verification remain enabled.
+    fun provideApkDownloadClient(): OkHttpClient = OkHttpClient.Builder().build()
+
+    @Provides
+    @Singleton
     fun provideRetrofit(client: OkHttpClient): Retrofit = Retrofit.Builder()
         .baseUrl(BuildConfig.MDM_BASE_URL)
         .client(client)
