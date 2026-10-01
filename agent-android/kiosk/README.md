@@ -16,7 +16,7 @@ defined locally.
 | `LockTaskKioskController` | real impl over `DevicePolicyManager` lock-task APIs |
 | `StubKioskController` | no-op fallback for non-Device-Owner / tests (all ops `Unsupported`) |
 | `CrashLoopGuard` | crash-loop protection (ported from Headwind `CrashLoopProtection`) |
-| `FaultStore` | counter persistence behind an interface |
+| `FaultStore` | atomic counter and locked-recovery persistence |
 | `SharedPrefsFaultStore` | production store (SharedPreferences, synchronous `commit()`) |
 | `InMemoryFaultStore` | Android-free store for unit tests |
 
@@ -67,16 +67,30 @@ loop. `:app` is responsible for (done there, not here):
 3. **`DISALLOW_CREATE_WINDOWS`** — set in `onLockTaskModeEntering(...)` and cleared
    in `onLockTaskModeExiting(...)` to block apps from drawing over the kiosk.
 
-4. **Crash-loop wiring** — register an uncaught-exception handler that calls
-   `CrashLoopGuard(SharedPrefsFaultStore(context)).registerFault()`; on next launch,
-   if `isCrashLoopDetected()` is true, skip auto-relaunch / exit lock-task and show a
-   recovery surface (e.g. launcher chooser) so a broken DPC can't brick the device.
+4. **Crash-loop wiring** — the single-app launcher registers each launch attempt with
+   the singleton `CrashLoopGuard`. On the fourth attempt inside 60 seconds it stops
+   launching the app and shows **Kiosk recovery**. It does not call `exit()`, clear
+   the allowlist or disable the HOME alias. Recovery calls `startLockTask()` just
+   like the normal kiosk screen.
 
-## Crash-loop algorithm
+## Locked recovery and administrator actions
 
-Ported from `reference/.../util/CrashLoopProtection.java`. More than
-`LOOP_CRASHES` (3) faults within `LOOP_TIME_SPAN` (60_000 ms) trips the guard — i.e.
-the 4th crash inside the window. A fault after the window restarts the count; an
-aged-out window resets on the next `isCrashLoopDetected()` check. The clock is
-injectable (`now: () -> Long`) and the counter sits behind `FaultStore`, so the
-logic is unit-tested on the JVM (`src/test/.../CrashLoopGuardTest.kt`).
+Fault count, window start and recovery latch are committed together in
+`SharedPrefsFaultStore`. Recovery survives process death, reboot and clock changes;
+waiting does not clear it. Reapplying the same desired kiosk on boot also leaves
+recovery intact. A changed kiosk configuration or an explicit authenticated
+`kiosk.enter` retries the app while retaining kiosk. If it still fails, recovery
+latches again. An unchanged configuration replay is not an administrator retry.
+
+`kiosk.exit` and removal of an existing desired kiosk arrive through the authenticated
+server command channel. They release device-owner policy and HOME only on an
+administrator action. Local exit and **Admin retry** require a configured nonblank
+password; blank/unset passwords never allow a local exit. `exitMode = remote`
+has no local actions, even if a password is present. The password is checked
+against the current persisted payload, so a stale dialog cannot bypass a new
+configuration. Failed retry/exit leaves persisted recovery intact.
+
+The threshold/counting, durable latch across guard reconstruction, boot replay,
+password denial and administrator retry/exit are exercised by JVM tests in
+`:kiosk` and `:core`. Actual Android lock-task/HOME retention still needs a
+Device-Owner device or emulator run.

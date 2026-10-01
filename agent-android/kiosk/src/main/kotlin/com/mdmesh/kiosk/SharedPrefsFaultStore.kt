@@ -18,14 +18,19 @@ class SharedPrefsFaultStore(context: Context) : FaultStore {
     override val lastFaultTime: Long
         get() = prefs.getLong(KEY_LAST_FAULT_TIME, -1L) // -1 == never faulted
 
-    override fun write(counter: Int, lastFaultTime: Long) {
+    override val recovery: Boolean
+        get() = prefs.getBoolean(KEY_RECOVERY, false)
+
+    override fun write(counter: Int, lastFaultTime: Long, recovery: Boolean) {
         prefs.edit()
             .putInt(KEY_COUNTER, counter)
             .putLong(KEY_LAST_FAULT_TIME, lastFaultTime)
+            .putBoolean(KEY_RECOVERY, recovery)
             .commit()
     }
 
     private companion object {
+        const val KEY_RECOVERY = "locked_recovery"
         const val KEY_COUNTER = "fault_counter"
         const val KEY_LAST_FAULT_TIME = "last_fault_time"
     }
