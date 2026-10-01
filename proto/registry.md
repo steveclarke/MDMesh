@@ -17,6 +17,8 @@ Advertised only when the device has a working strategy for it (`CapabilityRegist
 |-----|---------|---------|-------|
 | `wifi` | toggle/lock Wi-Fi | 24 | |
 | `bluetooth` | toggle/lock Bluetooth | 24 | BLUETOOTH_SCAN auto-grant fails if target app targetSdk<=30 |
+| `outgoingCalls` | allow ordinary outgoing calls (emergency calls unaffected) | 24 | |
+| `mobileNetworksConfig` | allow changes to mobile-network settings (does not disable service) | 24 | |
 | `usbStorage` | block USB mass storage | 24 | |
 | `camera` | disable camera | 24 | |
 | `screenshots` | disable screenshots | 24 | |

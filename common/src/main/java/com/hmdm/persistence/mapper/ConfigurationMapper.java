@@ -108,6 +108,8 @@ public interface ConfigurationMapper {
             "wifi=#{wifi}, " +
             "mobileData=#{mobileData}, " +
             "usbStorage=#{usbStorage}, " +
+            "outgoingCalls=#{outgoingCalls}, " +
+            "mobileNetworksConfig=#{mobileNetworksConfig}, " +
             "mainAppId=#{mainAppId}, " +
             "contentAppId=#{contentAppId}, " +
             "eventReceivingComponent=#{eventReceivingComponent}, " +

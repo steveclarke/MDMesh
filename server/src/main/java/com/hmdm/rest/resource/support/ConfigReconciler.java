@@ -47,6 +47,16 @@ public class ConfigReconciler {
         return DesiredConfigBuilder.build(cfg, apps);
     }
 
+    public DesiredConfig currentDocument(Device device, Set<String> tokens) {
+        DesiredConfig doc = currentDocument(device);
+        return doc == null ? null : DesiredConfigBuilder.forCapabilities(doc, tokens);
+    }
+
+    public String currentRevision(Device device, Set<String> tokens) {
+        DesiredConfig d = currentDocument(device, tokens);
+        return d == null ? null : d.getRevision();
+    }
+
     public String currentRevision(Device device) {
         DesiredConfig d = currentDocument(device);
         return d == null ? null : d.getRevision();
@@ -58,7 +68,7 @@ public class ConfigReconciler {
             // Cost short-circuit only: an old agent without the capability pays nothing (no config/app
             // query at all). ConfigReconcileDecision.decide still re-checks this same gate below.
             if (!AgentCapabilityTokens.isAllowed(DesiredConfigBuilder.CAPABILITY, deviceTokens)) return false;
-            DesiredConfig doc = currentDocument(device);
+            DesiredConfig doc = currentDocument(device, deviceTokens);
             if (doc == null) return false;
             // Steady state (device already applied this revision) must cost only the config + apps
             // selects: skip the command-queue lookups entirely. decide() would return NOOP anyway.

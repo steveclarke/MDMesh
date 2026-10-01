@@ -70,6 +70,9 @@ data class AgentDeviceStateDto(
     val powerMode: String? = null,
     /** Revision of the last desired-state document the agent fully applied; null until the first successful config.apply. */
     val appliedConfigRevision: String? = null,
+    /** Effective OS state, not the desired config; null when unavailable. */
+    val outgoingCallsAllowed: Boolean? = null,
+    val mobileNetworksConfigAllowed: Boolean? = null,
 )
 
 /** `data` payload of the checkin response: capability-gated commands to reconcile. */
