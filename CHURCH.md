@@ -56,3 +56,9 @@ A crashed app remains in locked recovery, including offline/reboot. A borrower r
 A Device Owner does not prevent every firmware/recovery attack. Keep physical custody, verify safe-boot/reset/debugging restrictions in the pilot, and use a restricted attendance session and purpose-limited web kiosk. Ordinary Chrome lock task alone is not a website URL allowlist.
 
 The emulator's Android recovery wipe failure is not proof of Nubia wipe behavior. Pilot reset/re-enrollment and eSIM retention with Steve; never select an eSIM-erasure option or use `WIPE_EUICC`.
+
+## Recorded fork verification
+
+On 2026-09-30 the integrated product code passed the affected upstream T0 builds/tests and the real-server T1 suite (56 passed, none failed). An enrolled Android 16/API 36 emulator demonstrated ordinary calls blocked, calls allowed only after assigning its separate profile, mobile-network settings controlled by admin, external HTTPS APK installation and update, and checksum rejection without replacing the installed app. Kiosk crash recovery stayed in OS lock-task through Back/Home/Recents/Settings attempts and an offline reboot; authenticated remote retry and exit worked. These results authorize preparing a one-Nubia pilot, not enrolling the fleet.
+
+The lab used an ignored debug-only cleartext manifest for its loopback server and an ephemeral CA for its separate HTTPS APK origin. Production source retains normal TLS behavior; untrusted HTTPS is refused by the download regression tests. No production signing key, real phone data or carrier call was used. Android's wipe reached recovery setup but the emulator lacked `/misc`, so uncrypt could not write the bootloader control block. Physical reset and eSIM retention remain unproven.
