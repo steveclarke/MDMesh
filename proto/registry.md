@@ -12,6 +12,8 @@ with the agent's capability advertisement and the server's command catalog.
 | `bluetooth` | toggle/lock Bluetooth | 24 | BLUETOOTH_SCAN auto-grant fails if target app targetSdk<=30 |
 | `gps` | location toggle | 24 | |
 | `mobileData` | mobile data toggle | 24 | |
+| `outgoingCalls` | allow ordinary outgoing calls (emergency calls unaffected) | 24 | |
+| `mobileNetworksConfig` | allow changes to mobile-network settings (does not disable service) | 24 | |
 | `usbStorage` | block USB mass storage | 24 | |
 | `camera` | disable camera | 24 | |
 | `screenshots` | disable screenshots | 24 | |

@@ -17,6 +17,8 @@ public class DeviceState implements Serializable {
     private String powerMode;
     private String telemetry;
     private String appliedConfigRevision;
+    private Boolean outgoingCallsAllowed;
+    private Boolean mobileNetworksConfigAllowed;
     private Long appliedConfigAt;
 
     public String getDeviceNumber() { return deviceNumber; }
@@ -41,6 +43,10 @@ public class DeviceState implements Serializable {
     public void setPowerMode(String v) { this.powerMode = v; }
     public String getTelemetry() { return telemetry; }
     public void setTelemetry(String v) { this.telemetry = v; }
+    public Boolean getOutgoingCallsAllowed() { return outgoingCallsAllowed; }
+    public void setOutgoingCallsAllowed(Boolean v) { outgoingCallsAllowed = v; }
+    public Boolean getMobileNetworksConfigAllowed() { return mobileNetworksConfigAllowed; }
+    public void setMobileNetworksConfigAllowed(Boolean v) { mobileNetworksConfigAllowed = v; }
     public String getAppliedConfigRevision() { return appliedConfigRevision; }
     public void setAppliedConfigRevision(String v) { this.appliedConfigRevision = v; }
     public Long getAppliedConfigAt() { return appliedConfigAt; }

@@ -14,6 +14,8 @@ public class AgentDeviceState {
     private String agentVersion;
     private String powerMode;
     private String appliedConfigRevision;
+    private Boolean outgoingCallsAllowed;
+    private Boolean mobileNetworksConfigAllowed;
 
     public Integer getBattery() { return battery; }
     public void setBattery(Integer v) { this.battery = v; }
@@ -31,6 +33,10 @@ public class AgentDeviceState {
     public void setAgentVersion(String v) { this.agentVersion = v; }
     public String getPowerMode() { return powerMode; }
     public void setPowerMode(String v) { this.powerMode = v; }
+    public Boolean getOutgoingCallsAllowed() { return outgoingCallsAllowed; }
+    public void setOutgoingCallsAllowed(Boolean v) { outgoingCallsAllowed = v; }
+    public Boolean getMobileNetworksConfigAllowed() { return mobileNetworksConfigAllowed; }
+    public void setMobileNetworksConfigAllowed(Boolean v) { mobileNetworksConfigAllowed = v; }
     public String getAppliedConfigRevision() { return appliedConfigRevision; }
     public void setAppliedConfigRevision(String v) { this.appliedConfigRevision = v; }
 }

@@ -246,6 +246,8 @@ export interface DeviceState {
   agentVersion?: string | null;
   powerMode?: string | null;
   appliedConfigRevision?: string | null;
+  outgoingCallsAllowed?: boolean | null;
+  mobileNetworksConfigAllowed?: boolean | null;
 }
 
 export interface CommandHistoryItem {

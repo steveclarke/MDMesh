@@ -84,6 +84,11 @@ public class Configuration implements CustomerData, Serializable {
     private Boolean mobileData;
     @ApiModelProperty("A flag indicating if USB storage is enabled on device")
     private Boolean usbStorage;
+    @ApiModelProperty("Allow ordinary outgoing calls; null leaves it unmanaged")
+    private Boolean outgoingCalls;
+    @ApiModelProperty("Allow changes to mobile-network settings; null leaves it unmanaged")
+    private Boolean mobileNetworksConfig;
+
     @ApiModelProperty("A type of location tracking")
     private RequestUpdatesType requestUpdates = RequestUpdatesType.DONOTTRACK;
     @ApiModelProperty("A flag indicating if location permission shouldn't be granted")
@@ -644,6 +649,12 @@ public class Configuration implements CustomerData, Serializable {
         this.applicationUsageParameters = applicationUsageParameters;
     }
 
+    public Boolean getOutgoingCalls() { return outgoingCalls; }
+    public void setOutgoingCalls(Boolean v) { this.outgoingCalls = v; }
+
+    public Boolean getMobileNetworksConfig() { return mobileNetworksConfig; }
+    public void setMobileNetworksConfig(Boolean v) { this.mobileNetworksConfig = v; }
+
     public Boolean getUsbStorage() {
         return usbStorage;
     }
@@ -915,6 +926,9 @@ public class Configuration implements CustomerData, Serializable {
         copy.setWifi(getWifi());
         copy.setMobileData(getMobileData());
         copy.setUsbStorage(getUsbStorage());
+        copy.setOutgoingCalls(getOutgoingCalls());
+        copy.setMobileNetworksConfig(getMobileNetworksConfig());
+
         copy.setRequestUpdates(getRequestUpdates());
         copy.setDisableLocation(getDisableLocation());
         copy.setAppPermissions(getAppPermissions());

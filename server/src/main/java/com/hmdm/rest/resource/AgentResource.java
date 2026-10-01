@@ -265,6 +265,8 @@ public class AgentResource {
             row.setLastBootAt(s.getLastBootAt());
             row.setAgentVersion(s.getAgentVersion());
             row.setPowerMode(s.getPowerMode());
+            row.setOutgoingCallsAllowed(s.getOutgoingCallsAllowed());
+            row.setMobileNetworksConfigAllowed(s.getMobileNetworksConfigAllowed());
             row.setAppliedConfigRevision(appliedRevision);
             row.setAppliedConfigAt(null);
             // The server (not the device) knows the public IP — inject it into the census JSON.

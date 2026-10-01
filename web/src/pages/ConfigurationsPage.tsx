@@ -595,9 +595,9 @@ function FieldControl({ def, value, apps, assigned, disabled, onChange }: { def:
       return (
         <span className="seg">
           {[
-            { v: null, l: 'Auto' },
-            { v: true, l: 'On' },
-            { v: false, l: 'Off' },
+            { v: null, l: def.triLabels?.[0] ?? 'Auto' },
+            { v: true, l: def.triLabels?.[1] ?? 'On' },
+            { v: false, l: def.triLabels?.[2] ?? 'Off' },
           ].map((o) => (
             <button key={String(o.v)} className={value === o.v || (o.v === null && value == null) ? 'on' : ''} disabled={disabled} onClick={() => onChange(o.v)}>
               {o.l}

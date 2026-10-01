@@ -101,4 +101,29 @@ class ConfigApplierTest {
         assertEquals("p1", r?.revision); assertEquals(true, wifi.last)
         assertNull(ConfigApplier(emptyMap(), kiosk(FakeController()), {}, InMemoryConfigStateStore()).reapplyPersisted())
     }
+    @Test fun `call and network restrictions stay independent and survive boot replay`() = runTest {
+        val calls = FakeToggle("outgoingCalls", PolicyOutcome.Applied)
+        val networks = FakeToggle("mobileNetworksConfig", PolicyOutcome.Applied)
+        val store = InMemoryConfigStateStore()
+        val toggles = mapOf("outgoingCalls" to calls, "mobileNetworksConfig" to networks)
+        val applier = ConfigApplier(toggles, kiosk(FakeController()), {}, store)
+        applier.apply(ConfigApplyPayload(
+            revision = "blocked", policies = mapOf("outgoingCalls" to false, "mobileNetworksConfig" to false),
+        ))
+        assertEquals(false, calls.last)
+        assertEquals(false, networks.last)
+        applier.apply(ConfigApplyPayload(
+            revision = "allow-call", policies = mapOf("outgoingCalls" to true, "mobileNetworksConfig" to false),
+        ))
+        calls.last = null
+        networks.last = null
+        val rebooted = ConfigApplier(toggles, kiosk(FakeController()), {}, store)
+        rebooted.reapplyPersisted()
+        assertEquals(true, calls.last)
+        assertEquals(false, networks.last)
+        rebooted.apply(ConfigApplyPayload(revision = "unmanaged"))
+        assertEquals(true, calls.last)
+        assertEquals(false, networks.last)
+    }
+
 }
