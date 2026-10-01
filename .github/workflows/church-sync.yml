@@ -1,0 +1,40 @@
+name: church-upstream-sync
+on:
+  schedule:
+    - cron: '23 5 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: write
+  issues: write
+concurrency:
+  group: church-upstream-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    if: github.repository == 'steveclarke/MDMesh'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: church/main
+          fetch-depth: 0
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: '24'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd
+        with:
+          packages: platform-tools
+      - name: Rebase, test all four candidates, then publish atomically
+        run: python3 scripts/church/sync.py
+      - name: Report conflict or test failure on the fork
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          gh issue create --repo steveclarke/MDMesh --title 'Church upstream sync failed' --body "No branch set was published unless all checks passed. Inspect the rebase/test/push error in $RUN_URL. Fix in a focused branch, then rerun church-upstream-sync."
