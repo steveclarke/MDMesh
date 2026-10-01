@@ -4,15 +4,51 @@
   "title": "AgentCheckInRequest",
   "type": "object",
   "additionalProperties": true,
-  "required": ["protocolVersion", "deviceId", "capabilities"],
+  "required": [
+    "protocolVersion",
+    "deviceId",
+    "capabilities"
+  ],
   "properties": {
-    "protocolVersion": { "type": "string", "pattern": "^\\d+\\.\\d+$" },
-    "deviceId": { "type": "string" },
-    "capabilities": { "$ref": "capability-matrix.schema.json#/properties/capabilities" },
+    "protocolVersion": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+$"
+    },
+    "deviceId": {
+      "type": "string"
+    },
+    "capabilities": {
+      "$ref": "capability-matrix.schema.json#/properties/capabilities"
+    },
     "results": {
       "type": "array",
       "description": "Acks for previously-delivered commands.",
-      "items": { "$ref": "command-result.schema.json" }
+      "items": {
+        "$ref": "command-result.schema.json"
+      }
+    },
+    "state": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true,
+      "properties": {
+        "outgoingCallsAllowed": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Effective OS allowance; null when unavailable."
+        },
+        "mobileNetworksConfigAllowed": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Effective OS allowance; null when unavailable."
+        }
+      }
     }
   }
 }

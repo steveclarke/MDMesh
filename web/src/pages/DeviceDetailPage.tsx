@@ -273,6 +273,8 @@ export function DeviceDetailPage() {
     { k: 'Screen', v: ds ? (ds.locked ? 'Locked' : 'Unlocked') : '—' },
     { k: 'Kiosk', v: ds ? (ds.kioskActive ? 'On' : 'Off') : '—' },
     { k: 'Connectivity', v: powerLabel(ds?.powerMode) },
+    { k: 'Outgoing calls (OS)', v: ds?.outgoingCallsAllowed == null ? 'Unknown' : ds.outgoingCallsAllowed ? 'Allowed' : 'Blocked' },
+    { k: 'Mobile-network settings (OS)', v: ds?.mobileNetworksConfigAllowed == null ? 'Unknown' : ds.mobileNetworksConfigAllowed ? 'Allowed' : 'Blocked' },
   ];
   const hardwareRows: Row[] = [
     { k: 'Android', v: orDash(teleStr(hw.osRelease) ?? ds?.androidRelease ?? device.androidVersion) },

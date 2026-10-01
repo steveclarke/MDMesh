@@ -2,8 +2,12 @@ package com.mdmesh.policy
 
 import com.mdmesh.policy.bluetooth.BluetoothPolicy
 import com.mdmesh.policy.bluetooth.BluetoothPolicyFactory
+import com.mdmesh.policy.calls.OutgoingCallsPolicy
+import com.mdmesh.policy.calls.OutgoingCallsPolicyFactory
 import com.mdmesh.policy.camera.CameraPolicy
 import com.mdmesh.policy.camera.CameraPolicyFactory
+import com.mdmesh.policy.mobile.MobileNetworksConfigPolicy
+import com.mdmesh.policy.mobile.MobileNetworksConfigPolicyFactory
 import com.mdmesh.policy.screenshots.ScreenshotsPolicy
 import com.mdmesh.policy.screenshots.ScreenshotsPolicyFactory
 import com.mdmesh.policy.usb.UsbStoragePolicy
@@ -37,6 +41,8 @@ class CapabilityRegistry(
      * `policy.apply` routing pick it up automatically — no switch to update.
      */
     fun togglePolicies(): Map<String, TogglePolicy> = buildMap {
+        OutgoingCallsPolicyFactory.create(handle)?.let { put(OutgoingCallsPolicy.CAPABILITY_KEY, it) }
+        MobileNetworksConfigPolicyFactory.create(handle)?.let { put(MobileNetworksConfigPolicy.CAPABILITY_KEY, it) }
         WifiPolicyFactory.create(handle)?.let { put(WifiPolicy.CAPABILITY_KEY, it) }
         CameraPolicyFactory.create(handle)?.let { put(CameraPolicy.CAPABILITY_KEY, it) }
         ScreenshotsPolicyFactory.create(handle)?.let { put(ScreenshotsPolicy.CAPABILITY_KEY, it) }

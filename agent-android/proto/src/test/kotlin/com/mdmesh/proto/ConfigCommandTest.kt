@@ -39,4 +39,17 @@ class ConfigCommandTest {
         val dto = AgentDeviceStateDto(battery = 1, charging = false, locked = false, kioskActive = false, androidRelease = "14", lastBootAt = 0L, appliedConfigRevision = "r1")
         assertTrue(ProtocolJson.json.encodeToString(dto).contains("\"appliedConfigRevision\":\"r1\""))
     }
+    @Test
+    fun `old snapshots default call network readback to unknown and false survives serialization`() {
+        val old = """{"battery":80,"charging":false,"locked":false,
+            "kioskActive":false,"androidRelease":"14","lastBootAt":0}"""
+        val state = ProtocolJson.json.decodeFromString<AgentDeviceStateDto>(old)
+        assertEquals(null, state.outgoingCallsAllowed)
+        assertEquals(null, state.mobileNetworksConfigAllowed)
+        val current = state.copy(outgoingCallsAllowed = true, mobileNetworksConfigAllowed = false)
+        val json = ProtocolJson.json.encodeToString(current)
+        assertTrue(json.contains("\"mobileNetworksConfigAllowed\":false"))
+        assertEquals(current, ProtocolJson.json.decodeFromString<AgentDeviceStateDto>(json))
+    }
+
 }

@@ -2850,4 +2850,20 @@
         </rollback>
     </changeSet>
 
+    <changeSet id="26.09.30-call-network-policy" author="steveclarke" context="common">
+        <comment>Nullable call/network policies and effective OS readback; old agents leave them null.</comment>
+        <sql>
+            ALTER TABLE configurations ADD COLUMN outgoingCalls BOOLEAN NULL;
+            ALTER TABLE configurations ADD COLUMN mobileNetworksConfig BOOLEAN NULL;
+            ALTER TABLE device_state ADD COLUMN outgoingCallsAllowed BOOLEAN NULL;
+            ALTER TABLE device_state ADD COLUMN mobileNetworksConfigAllowed BOOLEAN NULL;
+        </sql>
+        <rollback>
+            ALTER TABLE device_state DROP COLUMN mobileNetworksConfigAllowed;
+            ALTER TABLE device_state DROP COLUMN outgoingCallsAllowed;
+            ALTER TABLE configurations DROP COLUMN mobileNetworksConfig;
+            ALTER TABLE configurations DROP COLUMN outgoingCalls;
+        </rollback>
+    </changeSet>
+
 </databaseChangeLog>

@@ -17,6 +17,8 @@ package com.mdmesh.policy
 object UserRestrictions {
 
     // String values mirror android.os.UserManager constants exactly.
+    const val DISALLOW_OUTGOING_CALLS = "no_outgoing_calls"
+    const val DISALLOW_CONFIG_MOBILE_NETWORKS = "no_config_mobile_networks"
     const val DISALLOW_BLUETOOTH = "no_bluetooth"
     const val DISALLOW_USB_FILE_TRANSFER = "no_usb_file_transfer"
     const val DISALLOW_MOUNT_PHYSICAL_MEDIA = "no_physical_media"
@@ -26,6 +28,8 @@ object UserRestrictions {
      * the capability is not implemented via user restrictions.
      */
     fun forKey(capabilityKey: String): Set<String>? = when (capabilityKey) {
+        "outgoingCalls" -> setOf(DISALLOW_OUTGOING_CALLS)
+        "mobileNetworksConfig" -> setOf(DISALLOW_CONFIG_MOBILE_NETWORKS)
         "bluetooth" -> setOf(DISALLOW_BLUETOOTH)
         "usbStorage" -> setOf(DISALLOW_USB_FILE_TRANSFER, DISALLOW_MOUNT_PHYSICAL_MEDIA)
         else -> null
@@ -44,6 +48,7 @@ object UserRestrictions {
      * for keys this helper does not own.
      */
     fun minSdkForKey(capabilityKey: String): Int? = when (capabilityKey) {
+        "outgoingCalls", "mobileNetworksConfig" -> 21
         "bluetooth" -> 26
         "usbStorage" -> 21
         else -> null

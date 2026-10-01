@@ -54,11 +54,29 @@ public final class DesiredConfigBuilder {
         return d;
     }
 
+    /** Additive policies are sent only to agents advertising their capability. */
+    public static DesiredConfig forCapabilities(DesiredConfig doc, Set<String> tokens) {
+        Map<String, Boolean> managed = new TreeMap<String, Boolean>(doc.getPolicies());
+        for (String key : new String[]{"outgoingCalls", "mobileNetworksConfig"}) {
+            if (!AgentCapabilityTokens.isAllowed("policy." + key, tokens)) managed.remove(key);
+        }
+        DesiredConfig filtered = new DesiredConfig();
+        filtered.setConfigurationId(doc.getConfigurationId());
+        filtered.setKiosk(doc.getKiosk());
+        filtered.setLocation(doc.getLocation());
+        filtered.setPolicies(managed);
+        filtered.setRevision(revision(filtered));
+        return filtered;
+    }
+
     private static Map<String, Boolean> policies(Configuration cfg) {
         Map<String, Boolean> p = new TreeMap<String, Boolean>();
         putIfManaged(p, "wifi", cfg.getWifi());
         putIfManaged(p, "bluetooth", cfg.getBluetooth());
         putIfManaged(p, "usbStorage", cfg.getUsbStorage());
+        putIfManaged(p, "outgoingCalls", cfg.getOutgoingCalls());
+        putIfManaged(p, "mobileNetworksConfig", cfg.getMobileNetworksConfig());
+
         putIfManaged(p, "screenshots", cfg.getDisableScreenshots() == null ? null : !cfg.getDisableScreenshots());
         return p;
     }
