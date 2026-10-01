@@ -14,7 +14,7 @@ This fork manages six church-owned phones while keeping their existing eSIMs and
 
 ## Weekly upstream sync
 
-`.github/workflows/church-sync.yml` runs Monday at 05:23 UTC and can be run manually. GitHub scheduled workflows run only on the default branch, so `church/main` must remain the fork's default. Enable GitHub Actions on this fork. The workflow runs only on `steveclarke/MDMesh`, uses its short-lived repository token, and never opens anything on upstream.
+`.github/workflows/church-sync.yml` runs Monday at 05:23 UTC and can be run manually. GitHub scheduled workflows run only on the default branch, so `church/main` must remain the fork's default. Enable GitHub Actions and Issues on this fork so failed runs can open their tracking issue. The workflow runs only on `steveclarke/MDMesh`, uses its short-lived repository token, and never opens anything on upstream.
 
 `scripts/church/sync.py` fetches upstream `main`, rebases all three topic branches in disposable worktrees, reconstructs the integration through merges, and replays church-only commits. It runs upstream T0 server, console and agent commands on every candidate, plus sync tests and the edge check on integration. All checks must pass before one atomic, lease-protected push updates the four branches. A rebase, test or publication failure leaves the remote branch set unchanged and opens a fork issue linking the failed run. If issue creation itself fails, the Actions run remains the failure record.
 
@@ -37,12 +37,12 @@ Never enroll the real fleet with the debug build or debug key. Use one stable re
 
 Follow RELEASING.md for the upstream build conventions, but do not push upstream-style `v*` tags from this fork: the inherited release workflow targets upstream image names. Make church releases manually until separate fork image/release automation is reviewed.
 
-Supply the existing signing key from the external secret store into a protected temporary file. Set `MDM_RELEASE_STORE_FILE`, `MDM_RELEASE_STORE_PASSWORD`, `MDM_RELEASE_KEY_ALIAS`, and `MDM_RELEASE_KEY_PASSWORD` in the shell from the secret store without printing them or writing a repository `.env`. Build with a new monotonic version code:
+Supply the existing signing key from the external secret store into a protected temporary file. Set `MDM_RELEASE_STORE_FILE`, `MDM_RELEASE_STORE_PASSWORD`, `MDM_RELEASE_KEY_ALIAS`, and `MDM_RELEASE_KEY_PASSWORD` in the shell from the secret store without printing them or writing a repository `.env`. Inspect the installed/released APK version codes and choose a code greater than every one. The example below uses 302 (above upstream 0.3.1's 301); increase it if any deployed build is already newer:
 
 ```sh
 cd agent-android
 ./gradlew --no-daemon detekt testDebugUnitTest lintVitalRelease assembleRelease \
-  -PversionName=0.3.1-church.1 -PversionCode=116
+  -PversionName=0.3.1-church.1 -PversionCode=302
 ```
 
 Use `apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk` and record the APK SHA-256 and signing-certificate checksum in the release notes. Create a draft release on **steveclarke/MDMesh** using a `church-*` tag; this does not trigger inherited `v*` release publishing. Match the QR's agent package, downloadable URL and checksum to the exact signed artifact. Prove factory-welcome QR/Play Protect on one Nubia, install a same-key update and observe server check-in before enrolling the remaining five. Keep release secrets out of logs, commits and reports.
