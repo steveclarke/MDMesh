@@ -30,9 +30,11 @@ class ConfigApplier(
 ) {
     private val mutex = Mutex()
 
-    suspend fun apply(doc: ConfigApplyPayload): ConfigApplyResult = mutex.withLock { applyLocked(doc) }
+    suspend fun apply(doc: ConfigApplyPayload): ConfigApplyResult = mutex.withLock {
+        applyLocked(doc, retryKiosk = true)
+    }
 
-    private suspend fun applyLocked(doc: ConfigApplyPayload): ConfigApplyResult {
+    private suspend fun applyLocked(doc: ConfigApplyPayload, retryKiosk: Boolean): ConfigApplyResult {
         val outcomes = linkedMapOf<String, String>()
         for ((key, enabled) in doc.policies) {
             outcomes["policies.$key"] = when (val o = toggles[key]?.setEnabled(enabled)) {
@@ -41,7 +43,7 @@ class ConfigApplier(
                 is PolicyOutcome.Failed -> ConfigOutcome.failed(o.reason)
             }
         }
-        applyKiosk(doc)?.let { outcomes["kiosk"] = it }
+        applyKiosk(doc, retryKiosk)?.let { outcomes["kiosk"] = it }
         doc.location?.let { loc ->
             outcomes["location"] = runCatching { setLocationMode(loc.mode); ConfigOutcome.APPLIED }
                 .getOrElse { ConfigOutcome.failed(it.message ?: "location mode") }
@@ -52,14 +54,16 @@ class ConfigApplier(
     }
 
     /** @return the kiosk outcome, or null when nothing was asserted or exited (the key is then omitted). */
-    private suspend fun applyKiosk(doc: ConfigApplyPayload): String? {
+    private suspend fun applyKiosk(doc: ConfigApplyPayload, retryKiosk: Boolean): String? {
         // Absent kiosk = "configuration does not assert kiosk". Exit only when the LAST APPLIED CONFIG asserted
         // it (the admin turned it off). Kiosk entered by an ad-hoc kiosk.enter is never lifted here — otherwise
         // the first apply after upgrading would drop every manually-kiosked device.
-        val previousConfigHadKiosk = store.load()?.kiosk != null
+        val previousKiosk = store.load()?.kiosk
+        val previousConfigHadKiosk = previousKiosk != null
         val desiredKiosk = doc.kiosk
+        // Persisted boot replay is never an administrator retry, even if an ad-hoc kiosk differs.
         val r = when {
-            desiredKiosk != null -> kiosk.enter(desiredKiosk)
+            desiredKiosk != null -> kiosk.enter(desiredKiosk, retry = retryKiosk && previousKiosk != desiredKiosk)
             previousConfigHadKiosk && kiosk.isPersisted() -> kiosk.exit()
             else -> return null
         }
@@ -71,7 +75,9 @@ class ConfigApplier(
     }
 
     /** Re-run the last fully-applied document (after boot / self-update). Null when nothing is persisted. */
-    suspend fun reapplyPersisted(): ConfigApplyResult? = mutex.withLock { store.load()?.let { applyLocked(it) } }
+    suspend fun reapplyPersisted(): ConfigApplyResult? = mutex.withLock {
+        store.load()?.let { applyLocked(it, retryKiosk = false) }
+    }
 
     companion object {
         fun succeeded(r: ConfigApplyResult): Boolean = r.outcomes.values.none(ConfigOutcome::isFailed)

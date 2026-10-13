@@ -94,19 +94,48 @@ class CrashLoopGuardTest {
     }
 
     @Test
-    fun `detection aged out of window resets and returns false`() {
+    fun `recovery stays latched after timeout and process restart`() {
         val store = InMemoryFaultStore()
         val clock = FakeClock(nowMs = 0L)
         val guard = CrashLoopGuard(store, clock.source)
-
-        // Trip the guard: 4 crashes within the span.
         repeat(4) { guard.registerFault() }
-        assertTrue(guard.isCrashLoopDetected())
+        assertTrue(store.recovery)
 
-        // Let the window elapse: detection should reset, not stay latched.
         clock.advance(span + 1)
-        assertFalse(guard.isCrashLoopDetected())
-        assertEquals(0, store.counter)
-        assertEquals(0L, store.lastFaultTime)
+        val restarted = CrashLoopGuard(store, clock.source)
+        assertTrue(restarted.isCrashLoopDetected())
+        restarted.registerFault()
+        assertEquals(4, store.counter)
+        assertTrue(store.recovery)
+    }
+
+    @Test
+    fun `reboot with a changed clock does not clear recovery`() {
+        val store = InMemoryFaultStore()
+        val guard = CrashLoopGuard(store, FakeClock(nowMs = 50_000L).source)
+        repeat(4) { guard.registerFault() }
+        assertTrue(CrashLoopGuard(store, FakeClock(nowMs = 0L).source).isCrashLoopDetected())
+    }
+
+    @Test
+    fun `explicit administrator reset starts a fresh window durably`() {
+        val store = InMemoryFaultStore()
+        val guard = CrashLoopGuard(store, FakeClock(nowMs = 0L).source)
+        repeat(4) { guard.registerFault() }
+        guard.reset()
+        val restarted = CrashLoopGuard(store, FakeClock(nowMs = 10L).source)
+        assertFalse(restarted.isCrashLoopDetected())
+        assertFalse(store.recovery)
+        assertEquals(-1L, store.lastFaultTime)
+        restarted.registerFault()
+        assertEquals(1, store.counter)
+    }
+
+    @Test
+    fun `upgrade latches an already tripped counter even after its window`() {
+        val store = InMemoryFaultStore()
+        store.write(counter = 4, lastFaultTime = 0L, recovery = false)
+        assertTrue(CrashLoopGuard(store, FakeClock(nowMs = span + 1).source).isCrashLoopDetected())
+        assertTrue(store.recovery)
     }
 }

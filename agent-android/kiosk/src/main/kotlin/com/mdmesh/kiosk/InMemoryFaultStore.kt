@@ -13,8 +13,12 @@ class InMemoryFaultStore : FaultStore {
     override var lastFaultTime: Long = -1L // -1 == never faulted (0 is a valid clock value)
         private set
 
-    override fun write(counter: Int, lastFaultTime: Long) {
+    override var recovery: Boolean = false
+        private set
+
+    override fun write(counter: Int, lastFaultTime: Long, recovery: Boolean) {
         this.counter = counter
         this.lastFaultTime = lastFaultTime
+        this.recovery = recovery
     }
 }

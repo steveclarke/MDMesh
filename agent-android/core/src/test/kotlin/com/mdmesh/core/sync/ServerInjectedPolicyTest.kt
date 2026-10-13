@@ -12,6 +12,8 @@ import com.mdmesh.core.state.DeviceStateSource
 import com.mdmesh.core.store.ConfigStateStore
 import com.mdmesh.core.store.InMemoryConfigStateStore
 import com.mdmesh.core.store.InMemoryKioskStateStore
+import com.mdmesh.kiosk.CrashLoopGuard
+import com.mdmesh.kiosk.InMemoryFaultStore
 import com.mdmesh.kiosk.KioskController
 import com.mdmesh.kiosk.KioskResult
 import com.mdmesh.policy.PolicyOutcome
@@ -96,6 +98,7 @@ class ServerInjectedPolicyTest {
             store = InMemoryKioskStateStore(),
             home = NoHome,
             homeComponent = ComponentName("com.mdmesh.agent", "com.mdmesh.agent.KioskHomeAlias"),
+            crashGuard = CrashLoopGuard(InMemoryFaultStore()),
         )
 
         private val applier = ConfigApplier(toggles, kiosk, setLocationMode = {}, store = configStore)
