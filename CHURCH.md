@@ -33,19 +33,19 @@ Disposable candidate directories are retained with their path printed so failure
 
 ## Build a signed church agent
 
-Never enroll the real fleet with the debug build or debug key. Use one stable release keystore kept outside this repository with an encrypted backup and named custodian; every update must use the same signing certificate. Loss of the key can require resetting/re-enrolling every phone. This task did not create a production signing key.
+Never enroll the real fleet with the debug build or debug key. Use one stable release keystore kept outside this repository with an encrypted backup and named custodian; every update must use the same signing certificate. Loss of the key can require resetting/re-enrolling every phone. The church key and its custody are described below.
 
 Follow RELEASING.md for the upstream build conventions, but do not push upstream-style `v*` tags from this fork: the inherited release workflow targets upstream image names. Make church releases manually until separate fork image/release automation is reviewed.
 
-Supply the existing signing key from the external secret store into a protected temporary file. Set `MDM_RELEASE_STORE_FILE`, `MDM_RELEASE_STORE_PASSWORD`, `MDM_RELEASE_KEY_ALIAS`, and `MDM_RELEASE_KEY_PASSWORD` in the shell from the secret store without printing them or writing a repository `.env`. Inspect the installed/released APK version codes and choose a code greater than every one. The example below uses 302 (above upstream 0.3.1's 301); increase it if any deployed build is already newer:
+The church release key exists since 2026-10-13: a PKCS12 keystore, alias `mdmesh-church`, certificate SHA-256 `15198132a30e468465a7e03e5c52328249ffeecb1d257170b6b691d84f7da117`. Its custody copy is 1Password, vault "135 Main", item "MDMesh - release signing key". The working copy is `~/.config/mdmesh-church-release/` on the Mac Studio (folder 700, files 600, outside Git): `mdmesh-church-release.p12` and `store-password` (PKCS12 uses it as the key password too). Never copy it to a server or CI.
+
+Build with `scripts/church/release-build.sh <versionName> <versionCode>`. It reads the folder (or `MDMESH_RELEASE_DIR`), refuses a folder others can read, passes `MDM_RELEASE_*` to Gradle only through its own environment, builds `:app:assembleRelease`, and prints the APK path, APK SHA-256 and signer certificate digest. Inspect the installed/released APK version codes and choose a code greater than every one (upstream 0.3.x uses codes above 300):
 
 ```sh
-cd agent-android
-./gradlew --no-daemon detekt testDebugUnitTest lintVitalRelease assembleRelease \
-  -PversionName=0.3.1-church.1 -PversionCode=302
+scripts/church/release-build.sh 0.3.3-church.1 304
 ```
 
-Use `apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk` and record the APK SHA-256 and signing-certificate checksum in the release notes. Create a draft release on **steveclarke/MDMesh** using a `church-*` tag; this does not trigger inherited `v*` release publishing. Match the QR's agent package, downloadable URL and checksum to the exact signed artifact. Prove factory-welcome QR/Play Protect on one Nubia, install a same-key update and observe server check-in before enrolling the remaining five. Keep release secrets out of logs, commits and reports.
+The printed certificate digest must equal the one above. Use `apksigner verify --print-certs app/build/outputs/apk/release/app-release.apk` and record the APK SHA-256 and signing-certificate checksum in the release notes. Create a draft release on **steveclarke/MDMesh** using a `church-*` tag; this does not trigger inherited `v*` release publishing. Match the QR's agent package, downloadable URL and checksum to the exact signed artifact. Prove factory-welcome QR/Play Protect on one Nubia, install a same-key update and observe server check-in before enrolling the remaining five. Keep release secrets out of logs, commits and reports.
 
 ## Volunteer operation and recovery
 
