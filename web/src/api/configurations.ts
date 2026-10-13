@@ -44,6 +44,8 @@ export interface Configuration {
   description?: string;
   qrCodeKey?: string;
   applications?: ConfigApp[];
+  outgoingCalls?: boolean | null;
+  mobileNetworksConfig?: boolean | null;
   [key: string]: unknown;
 }
 

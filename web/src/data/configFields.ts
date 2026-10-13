@@ -36,6 +36,7 @@ export interface FieldDef {
   /** Configuration metadata (name, description): always shown, never sent to devices, not "Enforced". */
   metadata?: boolean;
   options?: FieldOption[];
+  triLabels?: [string, string, string];
   min?: number;
   max?: number;
 }
@@ -96,6 +97,8 @@ export const CONFIG_FIELDS: FieldDef[] = [
   { key: 'passwordMode', label: 'Password policy', type: 'text', group: 'Security', help: 'Device passcode policy (advanced; JSON string).' },
 
   // ── Restrictions ─────────────────────────────────────────────────────────
+  { key: 'outgoingCalls', label: 'Outgoing calls', type: 'tri', group: 'Restrictions', focused: true, enforced: true, triLabels: ['Unmanaged', 'Allow', 'Block'], help: 'Ordinary outgoing calls: unmanaged, allowed, or blocked. Emergency calls remain available.' },
+  { key: 'mobileNetworksConfig', label: 'Mobile-network settings', type: 'tri', group: 'Network', focused: true, enforced: true, triLabels: ['Unmanaged', 'Allow', 'Block'], help: 'Allow or block changes to mobile-network settings. Does not disable mobile service or erase SIMs.' },
   { key: 'usbStorage', label: 'USB storage', type: 'tri', group: 'Restrictions', focused: true, enforced: true, help: 'Allow access to USB mass storage.' },
   { key: 'blockStatusBar', label: 'Lock status bar', type: 'switch', group: 'Restrictions', help: 'Prevent pulling down the system status bar.' },
   { key: 'disableScreenshots', label: 'Block screenshots', type: 'tri', group: 'Restrictions', enforced: true, help: 'Prevent screenshots and screen recording.' },

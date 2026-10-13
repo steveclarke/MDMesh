@@ -10,6 +10,8 @@ import android.os.SystemClock
 import com.mdmesh.core.power.PowerModeStore
 import com.mdmesh.core.store.ConfigStateStore
 import com.mdmesh.proto.AgentDeviceStateDto
+import com.mdmesh.policy.CallNetworkStateReader
+import com.mdmesh.policy.wifi.DpmHandle
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -20,6 +22,7 @@ class DeviceStateCollector @Inject constructor(
     @ApplicationContext private val context: Context,
     private val powerModeStore: PowerModeStore,
     private val configStateStore: ConfigStateStore,
+    private val dpmHandle: DpmHandle,
 ) : DeviceStateSource {
     override fun snapshot(): AgentDeviceStateDto {
         val batt = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
@@ -30,6 +33,7 @@ class DeviceStateCollector @Inject constructor(
             status == BatteryManager.BATTERY_STATUS_FULL
         val am = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
         val kiosk = am.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE
+        val callNetwork = CallNetworkStateReader(context, dpmHandle)
         return AgentDeviceStateDto(
             battery = batteryPercent(level, scale),
             charging = charging,
@@ -40,6 +44,8 @@ class DeviceStateCollector @Inject constructor(
             agentVersion = installedVersionName(),
             powerMode = powerModeStore.get(),
             appliedConfigRevision = configStateStore.revision(),
+            outgoingCallsAllowed = callNetwork.outgoingCallsAllowed(),
+            mobileNetworksConfigAllowed = callNetwork.mobileNetworksConfigAllowed(),
         )
     }
 

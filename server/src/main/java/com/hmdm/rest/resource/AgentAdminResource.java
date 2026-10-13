@@ -39,6 +39,7 @@ import com.hmdm.rest.resource.support.ConfigReconciler;
 import com.hmdm.security.SecurityContext;
 import com.hmdm.util.AgentCapabilityTokens;
 import com.hmdm.util.DesiredConfigBuilder;
+import com.hmdm.rest.json.agent.DesiredConfig;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiOperation;
 import org.slf4j.Logger;
@@ -327,10 +328,10 @@ public class AgentAdminResource {
 
         ConfigStatusView v = new ConfigStatusView();
         v.setConfigurationId(device.getConfigurationId());
-        v.setCurrentRevision(configReconciler.currentRevision(device));
+        Set<String> tokens = AgentCapabilityTokens.flatten(commandDAO.getDeviceCapabilities(deviceId));
+        v.setCurrentRevision(configReconciler.currentRevision(device, tokens));
         DeviceState state = commandDAO.getState(deviceId);
         if (state != null) { v.setAppliedRevision(state.getAppliedConfigRevision()); v.setAppliedAt(state.getAppliedConfigAt()); }
-        Set<String> tokens = AgentCapabilityTokens.flatten(commandDAO.getDeviceCapabilities(deviceId));
         boolean supported = AgentCapabilityTokens.isAllowed(DesiredConfigBuilder.CAPABILITY, tokens);
         v.setSupported(supported);
         v.setInSync(v.getCurrentRevision() != null && v.getCurrentRevision().equals(v.getAppliedRevision()));
@@ -346,17 +347,18 @@ public class AgentAdminResource {
     public Response getSyncSummary() {
         Optional<Integer> customerId = SecurityContext.get().getCurrentCustomerId();
         if (!customerId.isPresent()) return Response.PERMISSION_DENIED();
-        Map<Integer, String> revisionByConfig = new HashMap<>();
+        Map<Integer, DesiredConfig> documentByConfig = new HashMap<>();
         Map<Integer, ConfigSyncSummary> out = new LinkedHashMap<>();
         for (DeviceSyncRow row : commandDAO.listDevicesForSync(customerId.get())) {
             Integer cfgId = row.getConfigurationId();
             ConfigSyncSummary s = out.computeIfAbsent(cfgId, id -> { ConfigSyncSummary x = new ConfigSyncSummary(); x.setConfigurationId(id); return x; });
             s.setTotal(s.getTotal() + 1);
-            String current = revisionByConfig.computeIfAbsent(cfgId, id -> {
+            DesiredConfig base = documentByConfig.computeIfAbsent(cfgId, id -> {
                 Device probe = new Device(); probe.setConfigurationId(id); probe.setCustomerId(customerId.get());
-                return configReconciler.currentRevision(probe);
+                return configReconciler.currentDocument(probe);
             });
             Set<String> tokens = AgentCapabilityTokens.flatten(row.getCapabilitiesJson());
+            String current = base == null ? null : DesiredConfigBuilder.forCapabilities(base, tokens).getRevision();
             boolean supported = AgentCapabilityTokens.isAllowed(DesiredConfigBuilder.CAPABILITY, tokens);
             if (!supported) {
                 s.setUnsupported(s.getUnsupported() + 1);
