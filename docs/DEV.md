@@ -161,7 +161,7 @@ installs it) is active, the server's `/opt/mdmesh/initialized.txt` says `OK`, `/
 signs in, and **that version's own** `scripts/agent-v1-e2e.sh` passes (`FAIL=0`) against the container.
 
 Always name the release to upgrade from: this clone also carries upstream Headwind tags (`v5.x`), so "the newest tag"
-is not the last MDMesh release. CI passes the latest GitHub release.
+is not the last MDMesh release. CI passes the latest upstream release (MDMesh-app/MDMesh) and fetches its tag.
 
 On a 4-core box `fresh` and `upgrade` take 3–5 minutes each and `killed` about 20 (one minute or two per kill point).
 A run needs a few GB of free space under the Docker root; it refuses to start below `T2_MIN_FREE_GB` (default 8). `T2_CACHE=1` shares the
