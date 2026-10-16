@@ -36,12 +36,17 @@ on:
         options: [all, fresh, upgrade, killed]
         default: all
       from-ref:
-        description: Release to upgrade from (empty = the latest GitHub release).
+        description: Release to upgrade from (empty = the latest release of the upstream repo).
         type: string
         default: ""
 
 permissions:
   contents: read
+
+env:
+  # Where MDMesh releases are published. A fork (the church fork has no GitHub releases and no v* tags of its own) still
+  # upgrades from the upstream release, which is what an installed server actually runs.
+  RELEASE_REPO: MDMesh-app/MDMesh
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -58,14 +63,13 @@ jobs:
       - id: plan
         env:
           GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           IN_DISTRO: ${{ inputs.distro || 'all' }}
           IN_SCENARIO: ${{ inputs.scenario || 'all' }}
           IN_FROM: ${{ inputs.from-ref }}
         run: |
-          # The release to upgrade from: the input, else the latest GitHub release (not the newest git tag).
+          # The release to upgrade from: the input, else the latest GitHub release of RELEASE_REPO (not the newest git tag).
           from=$IN_FROM
-          if [ -z "$from" ]; then from=$(gh release view --repo "$REPO" --json tagName --jq .tagName); fi
+          if [ -z "$from" ]; then from=$(gh release view --repo "$RELEASE_REPO" --json tagName --jq .tagName); fi
           case "$from" in v[0-9]*) ;; *) echo "::error::could not resolve the release to upgrade from (got '$from')"; exit 1 ;; esac
           echo "from-ref=$from" >> "$GITHUB_OUTPUT"
           python3 - >> "$GITHUB_OUTPUT" <<'EOF'
@@ -100,6 +104,13 @@ jobs:
           # with `git describe`.
           fetch-depth: 0
           fetch-tags: true
+
+      - name: Fetch the release to upgrade from
+        if: matrix.scenario != 'fresh'
+        # The release tag lives in RELEASE_REPO, which is not this checkout's repo on a fork. A no-op when it already is.
+        run: |
+          git cat-file -e "$T2_FROM_REF^{commit}" 2>/dev/null ||
+            git fetch --no-tags "https://github.com/$RELEASE_REPO.git" "+refs/tags/$T2_FROM_REF:refs/tags/$T2_FROM_REF"
 
       - name: Run the rig
         env:

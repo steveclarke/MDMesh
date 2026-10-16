@@ -11,7 +11,7 @@
 #                      converge and pass every check (the re-run also leaves HTTP_PORT out)
 #
 # Environment (all optional):
-#   T2_FROM_REF   the release to upgrade from (default v0.3.1). CI passes the latest GitHub release.
+#   T2_FROM_REF   the release to upgrade from (default v0.3.1). CI passes the latest upstream release (MDMesh-app/MDMesh) and fetches its tag.
 #   T2_TO_REF     the code under test (default HEAD)
 #   T2_KILL_POINTS  comma-separated kill points for `killed` (default: all; `bash tests/native/lib/guest.sh kill-points`)
 #   T2_OUT        where logs and results go (default ${TMPDIR:-/tmp}/mdmesh-t2); each run writes <T2_OUT>/<container name>/
